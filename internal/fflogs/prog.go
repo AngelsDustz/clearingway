@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/Veraticus/clearingway/internal/ffxiv"
 )
@@ -46,15 +45,18 @@ type Fight struct {
 }
 
 func (f *Fflogs) GetProgForReport(r string, rankingsToGet []*RankingToGet, char *ffxiv.Character) (*Fights, error) {
-	query := strings.Builder{}
-	query.WriteString(
-		fmt.Sprintf(
-			"query{reportData{report(code: \"%s\") {fights {kill difficulty id encounterID lastPhaseAsAbsoluteIndex friendlyPlayers} masterData(translate: false) {actors(type: \"Player\") {id name server}}}}}",
-			r,
-		),
+	query := fmt.Sprintf(
+		`query{
+				reportData{report(code: "%s") {
+					fights {kill difficulty id encounterID lastPhaseAsAbsoluteIndex friendlyPlayers}
+					masterData(translate: false) {actors(type: "Player") {id name server}}
+				}
+			}
+		}`,
+		r,
 	)
 
-	raw, err := f.graphqlClient.ExecRaw(context.Background(), query.String(), nil)
+	raw, err := f.graphqlClient.ExecRaw(context.Background(), query, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error executing query: %w", err)
 	}

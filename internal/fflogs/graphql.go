@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -41,7 +40,7 @@ type RankingToGet struct {
 
 func (f *Fflogs) SetCharacterLodestoneID(char *ffxiv.Character) error {
 	query := fmt.Sprintf(
-		"query{characterData{character(name: \"%s\", serverSlug: \"%s\", serverRegion: \"%s\"){lodestoneID}}}",
+		`query{characterData{character(name: "%s", serverSlug: "%s", serverRegion: "%s"){lodestoneID}}}`,
 		char.Name(),
 		char.World,
 		char.PhysicalDatacenter().Abbreviation,
@@ -92,38 +91,36 @@ func (f *Fflogs) SetCharacterLodestoneID(char *ffxiv.Character) error {
 var returnedRankingsRegexp = regexp.MustCompile(`(\D+)Z(\d+)`)
 
 func (f *Fflogs) GetRankingsForCharacter(rankingsToGet []*RankingToGet, char *ffxiv.Character) (*Rankings, error) {
-	query := strings.Builder{}
-	query.WriteString(
-		fmt.Sprintf(
-			"query{characterData{character(name: \"%s\", serverSlug: \"%s\", serverRegion: \"%s\"){",
-			char.Name(),
-			char.World,
-			char.PhysicalDatacenter().Abbreviation,
-		),
-	)
+	var rankingQuery string
 	for _, rankingToGet := range rankingsToGet {
 		for _, id := range rankingToGet.IDs {
-			query.WriteString(
-				fmt.Sprintf(
-					"rdpsZ%d:encounterRankings(encounterID: %d, difficulty: %d, metric: rdps) ",
-					id,
-					id,
-					rankingToGet.Difficulty,
-				),
+			// Add rdps
+			rankingQuery += fmt.Sprintf(
+				"rdpsZ%d:encounterRankings(encounterID: %d, difficulty: %d, metric: rdps) ",
+				id,
+				id,
+				rankingToGet.Difficulty,
 			)
-			query.WriteString(
-				fmt.Sprintf(
-					"hpsZ%d:encounterRankings(encounterID: %d, difficulty: %d, metric: hps) ",
-					id,
-					id,
-					rankingToGet.Difficulty,
-				),
+
+			// Add hps
+			rankingQuery += fmt.Sprintf(
+				"hpsZ%d:encounterRankings(encounterID: %d, difficulty: %d, metric: hps) ",
+				id,
+				id,
+				rankingToGet.Difficulty,
 			)
 		}
 	}
-	query.WriteString("}}}")
 
-	raw, err := f.graphqlClient.ExecRaw(context.Background(), query.String(), nil)
+	query := fmt.Sprintf(
+		`query{characterData{character(name: "%s", serverSlug: "%s", serverRegion: "%s"){ %s } } }`,
+		char.Name(),
+		char.World,
+		char.PhysicalDatacenter().Abbreviation,
+		rankingQuery,
+	)
+
+	raw, err := f.graphqlClient.ExecRaw(context.Background(), query, nil)
 	if err != nil {
 		return nil, fmt.Errorf("Error executing query: %w", err)
 	}
